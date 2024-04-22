@@ -1,37 +1,30 @@
 import Data.List (transpose, findIndex)
 
--- Definição doo tipo enumerado para os jogadores, que permite que sejam comparados
--- e convertidos em string
+-- Define um tipo enumerado para os jogadores, que possibilita comparações e conversões para string
 data Player = Player1 | Player2 deriving (Eq, Show)
 
--- Definição do tipo sinônimo para o tabuleiro, utilizando uma lista de listas de caracteres
--- [char] = linhas; [[char]] = lista de linhas (colunas)
+-- Define um sinônimo de tipo para o tabuleiro, usando uma lista de listas de caracteres
 type Board = [[Char]]
 
--- Constantes para o número de linhas e colunas do tabuleiro, com dados padrões dos tabuleiros
+-- Constantes para o número de linhas e colunas do tabuleiro
 numRows :: Int
 numRows = 6
 numCols :: Int
 numCols = 7
 
--- Cria um tabuleiro vazio, preenchido com espaços
--- a função replicate (definida posteriormente) é usada aqui para criar uma linha de células vazias
--- e depois essas linhas são replicadas novamente, para formar o tabuleiro
+-- Gera um tabuleiro vazio preenchido com espaços
 emptyBoard :: Board
 emptyBoard = replicate numRows (replicate numCols ' ')
 
--- Imprime o tabuleiro, linha por linha
+-- Imprime o tabuleiro no console, linha por linha
 printBoard :: Board -> IO ()
 printBoard board = mapM_ printRow board
 
--- Imprime uma única linha do tabuleiro
+-- Auxiliar para imprimir uma única linha do tabuleiro
 printRow :: [Char] -> IO ()
 printRow row = putStrLn $ " | " ++ concatMap (\x -> [x] ++ " | ") row
 
--- Tenta fazer um movimento no tabuleiro na coluna especificada pelo jogador
--- Primeiro, verifica se a coluna informada tá dentro dos limites do tabuleiro (maior que zero e menor que o número de colunas)
--- Usa findEmptyRow pra encontrar a primeira linha vazia na coluna a partir do fundo do tabuleiro
--- Se encontrar, aí chama replace2D pra colocar a peça na posição
+-- Realiza uma jogada na coluna especificada, retornando um novo tabuleiro se possível
 makeMove :: Player -> Int -> Board -> Maybe Board
 makeMove player col board
     | col < 0 || col >= numCols = Nothing
@@ -41,26 +34,24 @@ makeMove player col board
     where
         piece Player1 = 'X'
         piece Player2 = 'O'
-        findEmptyRow :: Int -> Board -> Maybe Int
-        findEmptyRow col b = 
-            let colData = map (!! col) b
-            in findIndex (== ' ') (reverse colData) >>= \idx -> Just (numRows - 1 - idx)
 
--- Substitui um elemento em uma lista na posição 'n' com o valor correspondente ao jogador
--- se n == 0, vai substituir diretamente no cabeçalho da linha
--- se não, chama recursivamente ela mesma p/ resto da lista e decrementa até ser 0
+-- Encontra a primeira linha vazia em uma coluna específica
+findEmptyRow :: Int -> Board -> Maybe Int
+findEmptyRow col b = 
+    let colData = map (!! col) b
+    in findIndex (== ' ') (reverse colData) >>= \idx -> Just (numRows - 1 - idx)
+
+-- Substitui um elemento em uma lista na posição especificada
 replace :: Int -> a -> [a] -> [a]
 replace n newVal (x:xs)
     | n == 0 = newVal : xs
     | otherwise = x : replace (n-1) newVal xs
 
--- Substitui um elemento em uma matriz (lista de listas - 2D)
--- usa replace pra substituir a linha inteira, e o elemento da coluna informada
--- com o valor do jogador
+-- Substitui um elemento em uma matriz na posição especificada
 replace2D :: Int -> Int -> Char -> [[Char]] -> [[Char]]
 replace2D n m newVal xs = replace n (replace m newVal (xs !! n)) xs
 
--- Avalia se o jogador atual ganhou verificando todas as linhas, colunas e diagonais do tabuleiro
+-- Avalia se o jogador atual ganhou verificando linhas, colunas e diagonais do tabuleiro
 checkWin :: Player -> Board -> Bool
 checkWin player board = any (checkLine player) (rows ++ cols ++ diags)
     where
@@ -68,31 +59,31 @@ checkWin player board = any (checkLine player) (rows ++ cols ++ diags)
         cols = transpose board
         diags = diagonals board
 
--- Verifica se há uma linha contínua de quatro peças iguais
+-- Verifica se uma linha contém quatro peças consecutivas do mesmo jogador
 checkLine :: Player -> [Char] -> Bool
 checkLine player line = any (== 4) $ map (length . filter (== piece)) (grouped 4 line)
     where piece = if player == Player1 then 'X' else 'O'
 
--- Agrupa elementos em sub-listas de tamanho n para criar todos os subconjuntos possíveis de 4 elementos numa lista
+-- Agrupa elementos em sub-listas de tamanho especificado
 grouped :: Int -> [a] -> [[a]]
 grouped _ [] = []
 grouped n list@(x:xs)
     | length list < n = []
     | otherwise = take n list : grouped n xs
 
--- Calcula todas as diagonais relevantes do tabuleiro
+-- Calcula todas as diagonais relevantes no tabuleiro
 diagonals :: Board -> [[Char]]
 diagonals b = concat [rightDiagonals b, leftDiagonals b]
 
--- Calcula diagonais p/ a direita e p/ cima
+-- Calcula diagonais ascendentes à direita
 rightDiagonals :: Board -> [[Char]]
 rightDiagonals b = [diagonal b x y (-1, 1) | x <- [0..numRows-1], y <- [0..numCols-1], x >= 3, y <= numCols-4]
 
--- Calcula diagonais p/ a esquerda e p/ cima
+-- Calcula diagonais ascendentes à esquerda
 leftDiagonals :: Board -> [[Char]]
 leftDiagonals b = [diagonal b x y (-1, -1) | x <- [0..numRows-1], y <- [0..numCols-1], x >= 3, y >= 3]
 
--- Função auxiliar para calcular uma diagonal a partir de um ponto inicial c/ direção específica
+-- Gera uma diagonal do tabuleiro dado um ponto de início e direção
 diagonal :: Board -> Int -> Int -> (Int, Int) -> [Char]
 diagonal b startX startY (dx, dy) =
     takeWhileValid (startX, startY) (dx, dy) []
@@ -101,20 +92,14 @@ diagonal b startX startY (dx, dy) =
         | x < 0 || x >= numRows || y < 0 || y >= numCols = acc
         | otherwise = takeWhileValid (x + dx, y + dy) (dx, dy) (b !! x !! y : acc)
 
--- Função principal para iniciar o jogo
--- Exibe mensagem de boas vindas, os jogadores e o tabuleiro
+-- Inicia o jogo exibindo uma mensagem de boas-vindas e gerenciando os turnos dos jogadores
 playGame :: IO ()
 playGame = do
     putStrLn "Bem-vindo ao Quatro em Linha!"
     putStrLn "Jogador 1: X | Jogador 2: O"
     playTurn Player1 emptyBoard
 
--- Função recursiva para gerenciar turnos dos jogadores
--- Exibe o estado atual do tabuleiro e controla o fluxo p/ identificar vitória ou empate
--- Primeiro mostra o tabuleiro e dps solicita a jogada do player
--- Converte a entrada em inteiro e chama makeMove
--- Mostra qual jogador venceu ou então empate se o tabuleiro tá cheio e sem vitórias
--- Se makeMove retorna Nothing, então exibe a mensagem de q a jogada é inválida
+-- Gerencia turnos recursivamente, alternando entre jogadores e verificando condições de vitória ou empate
 playTurn :: Player -> Board -> IO ()
 playTurn player board = do
     putStrLn $ "\nTabuleiro atual:"
@@ -140,6 +125,6 @@ nextPlayer :: Player -> Player
 nextPlayer Player1 = Player2
 nextPlayer Player2 = Player1
 
--- Função principal que inicia o jogo
+-- Ponto de entrada principal que inicia o jogo
 main :: IO ()
 main = playGame
